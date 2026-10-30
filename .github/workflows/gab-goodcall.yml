@@ -1,0 +1,9 @@
+name: gab-goodcall
+on:
+  push:
+    branches: [main]
+jobs:
+  call:
+    uses: ./.github/workflows/gab-reusable.yml
+    with:
+      prefix: ok
