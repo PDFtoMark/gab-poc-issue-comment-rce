@@ -1,0 +1,19 @@
+name: gab-owner-gate
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gated-false:
+    if: github.repository_owner == 'Adobe-Enterprise-Docs'
+    uses: Adobe-Enterprise-Docs/workflows/.github/workflows/validate-articles.yml@main
+    with:
+      debug: true
+
+  always-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ALWAYS_RUNS_JOB_EXECUTED"
