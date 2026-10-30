@@ -1,0 +1,29 @@
+name: gab-jira-key-hijack-poc
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evidence - raw gh issue view output
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh issue view ${{ github.event.issue.number }} --comments --repo ${{ github.repository }}
+
+      - name: Find Jira key (verbatim logic from _issue-closed.yaml)
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          JIRA_KEY=$(gh issue view ${{ github.event.issue.number }} --comments --repo ${{ github.repository }} | grep 'was created for internal tracking' | grep -oE 'CLOUDP-[0-9]+' | head -1)
+          echo "key=$JIRA_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Would transition
+        run: echo "transition-jira issue-key=${{ steps.find.outputs.key }} transition-name='Resolve Issue' resolution=Done"
