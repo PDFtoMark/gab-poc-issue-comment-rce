@@ -1,0 +1,13 @@
+name: xcheck public clone with foreign token
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - name: fetch other public repo with this repo's GITHUB_TOKEN
+        run: |
+          echo "token-scoped-to=$GITHUB_REPOSITORY"
+          curl -sS --max-time 20 -o /dev/null -w "api_status=%{http_code}\n" -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/PDFtoMark/gab-poc-adp-linter
+          git clone --depth 1 "https://x-access-token:$GITHUB_TOKEN@github.com/PDFtoMark/gab-poc-adp-linter.git" /tmp/other && echo CLONE_OK || echo CLONE_FAIL
