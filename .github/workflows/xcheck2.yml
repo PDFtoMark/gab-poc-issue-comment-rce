@@ -1,0 +1,17 @@
+name: xcheck checkout foreign public
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out foreign public repo by sha with this repo's token
+        uses: actions/checkout@v6
+        with:
+          repository: PDFtoMark/gab-poc-adp-linter
+          ref: 7f80cc07f350fad989177050370c08c8a94a443a
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: prove
+        run: git log --oneline -1 && git remote -v
