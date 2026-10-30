@@ -1,0 +1,13 @@
+name: Process Mention
+on:
+  repository_dispatch:
+    types: [mention_trigger]
+jobs:
+  process_mention:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo the received data
+        run: |
+          echo "Mentioned by: ${{ github.event.client_payload.author }}"
+          echo "Comment: ${{ github.event.client_payload.comment_body }}"
+          echo "Link: ${{ github.event.client_payload.html_url }}"
