@@ -1,0 +1,62 @@
+name: Autofix PR
+on:
+  repository_dispatch:
+    types: [ auto-fix-command ]
+
+permissions: {}
+jobs:
+  fix-pr:
+    name: Fix PR
+    if: github.event.client_payload.slash_command.command == 'auto-fix'
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.client_payload.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.client_payload.pull_request.head.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Remove previous autofix commits
+        id: prepare-branch
+        run: |
+          branch="${{ github.event.client_payload.pull_request.head.ref }}"
+          reset_target="HEAD"
+
+          while true; do
+            subject="$(git log -1 --format=%s "$reset_target")"
+            if [[ ! "$subject" =~ ^\[autofix\]\  ]]; then
+              break
+            fi
+
+            if ! git rev-parse "${reset_target}^" >/dev/null 2>&1; then
+              echo "Branch history is entirely autofix commits; refusing to reset past the root commit."
+              exit 1
+            fi
+
+            reset_target="${reset_target}^"
+          done
+
+          if [[ "$reset_target" != "HEAD" ]]; then
+            git reset --hard "$reset_target"
+            git push --force-with-lease origin "HEAD:${branch}"
+          fi
+
+          git fetch origin "$branch"
+          expected_remote_head="$(git rev-parse "origin/${branch}")"
+          echo "expected_remote_head=${expected_remote_head}" >> "$GITHUB_OUTPUT"
+      - name: merge target branch
+        run: |
+          echo 'bindings/generated/** merge=ours' >> .git/info/attributes
+          echo 'contracts/dars/** merge=ours' >> .git/info/attributes
+          git config --global user.name "Login will be determined by the Github API based on the creator of the token"
+          git config --global user.email ""
+          git config --local merge.ours.driver true
+          git fetch origin ${{ github.event.client_payload.pull_request.base.ref }}
+          git merge --no-edit "origin/${{ github.event.client_payload.pull_request.base.ref }}"
+      - name: Run fixes
+        run: make fix-all
