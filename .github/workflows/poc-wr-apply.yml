@@ -1,0 +1,12 @@
+name: PoC WR Apply
+on:
+  workflow_run:
+    workflows: ["PoC WR Build"]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "APPLY-RAN conclusion=${{ github.event.workflow_run.conclusion }} event=${{ github.event.workflow_run.event }}"
