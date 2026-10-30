@@ -1,0 +1,13 @@
+name: gab-reusable
+on:
+  workflow_call:
+    inputs:
+      prefix:
+        type: string
+        required: false
+        default: "none"
+jobs:
+  echo:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "REUSABLE_RAN prefix=${{ inputs.prefix }}"
