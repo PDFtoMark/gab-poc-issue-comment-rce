@@ -1,0 +1,7 @@
+name: gab-missing
+on:
+  push:
+    branches: [main]
+jobs:
+  call:
+    uses: PDFtoMark/gab-does-not-exist-xyz/.github/workflows/x.yml@main
