@@ -1,0 +1,12 @@
+name: gab-reqinput
+on:
+  workflow_call:
+    inputs:
+      required_thing:
+        type: string
+        required: true
+jobs:
+  echo:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "REQUIRED=${{ inputs.required_thing }}"
