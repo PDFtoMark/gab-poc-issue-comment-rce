@@ -1,0 +1,9 @@
+name: gab-badinput
+on:
+  push:
+    branches: [main]
+jobs:
+  call:
+    uses: ./.github/workflows/gab-reusable.yml
+    with:
+      debug: true
