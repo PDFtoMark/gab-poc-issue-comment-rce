@@ -14,21 +14,28 @@ jobs:
       COMMENT: ${{ github.event.comment.body }}
     runs-on: ubuntu-latest
     steps:
-      - name: mirrored target logic + probes
+      - name: env structure probes
+        run: |
+          echo "--- exact env entry count for suspicious names ---"
+          if printenv GAB_SMUGGLED >/dev/null 2>&1; then echo "::error::REAL ENV VAR GAB_SMUGGLED"; else echo "PROBE: GAB_SMUGGLED not a real variable"; fi
+          if printenv NODE_OPTIONS >/dev/null 2>&1; then echo "::error::REAL ENV VAR NODE_OPTIONS=$(printenv NODE_OPTIONS)"; else echo "PROBE: NODE_OPTIONS not set"; fi
+          if printenv BASH_ENV >/dev/null 2>&1; then echo "::error::REAL ENV VAR BASH_ENV=$(printenv BASH_ENV)"; else echo "PROBE: BASH_ENV not set"; fi
+          echo "--- env(1) NUL-delimited entries matching GAB_ ---"
+          env -0 | tr '\0' '\n' | awk -F= '$1=="GAB_SMUGGLED"{print "FOUND AS OWN ENTRY"}' || true
+          echo "--- raw COMMENT value ---"
+          printf '%s\n' "$COMMENT"
+          echo "--- byte count ---"
+          printf '%s' "$COMMENT" | wc -c
+          echo "PROBE: done"
+      - name: mirrored target logic
         run: |
           labelArray=("awaiting-author" "WIP" "Easy" "documentation")
           COMMENT="${COMMENT//$'\r'/}"
           COMMENT="$(printf '%s' "${COMMENT}" | awk '{$1=$1};1')"
-          printf '%s' "${COMMENT}" | hexdump -cC
-          printf 'Comment:"%s"\n' "${COMMENT}"
           for i in "${!labelArray[@]}"; do
             label="${labelArray[$i]}"
             inComment="$(printf '%s' "${COMMENT}" | grep -E "^[+-]?${label}$" | tail -1)"
             printf 'label=%s inComment=%s\n' "${label}" "${inComment}"
           done
-          echo "--- probes ---"
-          echo "COMMENT len=${#COMMENT}"
-          echo "lines in COMMENT=${COMMENT//[!$'\n']/}" | head -c 0
           if [ -f /tmp/gab-injected ]; then echo "::error::INJECTION FILE PRESENT"; else echo "PROBE: no injected file"; fi
-          if env | grep -q '^GAB_SMUGGLED='; then echo "::error::SMUGGLED ENV VAR PRESENT"; else echo "PROBE: no smuggled env var"; fi
           echo "PROBE: done"
