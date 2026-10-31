@@ -1,0 +1,34 @@
+name: gab env multiline probe
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    env:
+      COMMENT: ${{ github.event.comment.body }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: mirrored target logic + probes
+        run: |
+          labelArray=("awaiting-author" "WIP" "Easy" "documentation")
+          COMMENT="${COMMENT//$'\r'/}"
+          COMMENT="$(printf '%s' "${COMMENT}" | awk '{$1=$1};1')"
+          printf '%s' "${COMMENT}" | hexdump -cC
+          printf 'Comment:"%s"\n' "${COMMENT}"
+          for i in "${!labelArray[@]}"; do
+            label="${labelArray[$i]}"
+            inComment="$(printf '%s' "${COMMENT}" | grep -E "^[+-]?${label}$" | tail -1)"
+            printf 'label=%s inComment=%s\n' "${label}" "${inComment}"
+          done
+          echo "--- probes ---"
+          echo "COMMENT len=${#COMMENT}"
+          echo "lines in COMMENT=${COMMENT//[!$'\n']/}" | head -c 0
+          if [ -f /tmp/gab-injected ]; then echo "::error::INJECTION FILE PRESENT"; else echo "PROBE: no injected file"; fi
+          if env | grep -q '^GAB_SMUGGLED='; then echo "::error::SMUGGLED ENV VAR PRESENT"; else echo "PROBE: no smuggled env var"; fi
+          echo "PROBE: done"
