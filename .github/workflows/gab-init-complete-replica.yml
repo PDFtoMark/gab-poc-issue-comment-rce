@@ -1,0 +1,87 @@
+name: gab-init-complete-replica
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  validate_and_setup:
+    if: |
+      github.event.issue.state == 'open' &&
+      contains(github.event.issue.labels.*.name, 'initialization') &&
+      github.event.comment.user.login != 'github-actions[bot]' &&
+      (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR') &&
+      vars.IS_TEMPLATE != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      upstream_repo: ${{ steps.validate.outputs.upstream_repo }}
+      should_proceed: ${{ steps.validate.outputs.should_proceed }}
+    steps:
+      - name: Debug context
+        env:
+          ASSOC: ${{ github.event.comment.author_association }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          IS_TEMPLATE: ${{ github.event.repository.is_template }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          echo "actor=$ACTOR assoc=$ASSOC is_template=$IS_TEMPLATE comment_id=$COMMENT_ID"
+
+      - name: Template Repository Protection Check (replica)
+        id: template_check
+        run: |
+          if [[ "${{ github.event.repository.is_template }}" == "true" ]]; then
+            echo "blocked by github is_template flag"
+            echo "is_template=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_template=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Block if template
+        if: steps.template_check.outputs.is_template == 'true'
+        run: |
+          echo "BLOCKED_TEMPLATE"
+          exit 1
+
+      - name: Validate repository input (replica of local action)
+        id: validate
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          REPO=$(echo "$COMMENT_BODY" | head -1 | xargs)
+          echo "Processing repository input: [$REPO]"
+          if [[ "$REPO" == http* ]]; then
+            if ! [[ "$REPO" =~ ^https?://[^/]+/[^/]+/[^/]+(/.*)?$ ]]; then
+              echo "regex rejected"
+              echo "should_proceed=false" >> "$GITHUB_OUTPUT"
+              echo "upstream_repo=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          else
+            if ! [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+              echo "should_proceed=false" >> "$GITHUB_OUTPUT"
+              echo "upstream_repo=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "regex accepted"
+          echo "upstream_repo=$REPO" >> "$GITHUB_OUTPUT"
+          echo "should_proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Vulnerable interpolation (harmless payload)
+        if: steps.validate.outputs.should_proceed == 'true'
+        run: |
+          REPO="${{ steps.validate.outputs.upstream_repo }}"
+          echo "REPO_VALUE=[$REPO]"
+
+  setup_repository:
+    needs: validate_and_setup
+    if: needs.validate_and_setup.outputs.should_proceed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "DOWNSTREAM_PRIVILEGED_JOB_REACHED"
