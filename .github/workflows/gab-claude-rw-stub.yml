@@ -1,0 +1,52 @@
+name: Claude Code PR Review
+
+concurrency:
+  cancel-in-progress: false
+  group: "claude-code-review-${{ github.event.pull_request.number || github.event.issue.number }}"
+
+on:
+  workflow_call:
+    inputs:
+      custom_review_instructions:
+        description: 'Custom review instructions to append to the base prompt'
+        required: false
+        type: string
+        default: ''
+      prompt:
+        description: 'Optional prompt to use for the review. If "prompt_file" is also set, that will be used instead.'
+        required: false
+        type: string
+        default: ''
+      prompt_file:
+        description: 'Optional file that contains the prompt to use for the review. This takes priority over "prompt".'
+        required: false
+        type: string
+        default: ''
+      disallowed_tools:
+        description: 'Comma-separated list of tools to disallow during the review'
+        required: false
+        type: string
+        default: ''
+      allowed_tools:
+        description: 'Comma-separated list of tools to allow during the review'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  claude-review:
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write # Required for OIDC authentication with AWS
+    if: |
+      (
+        (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '@claude') && (github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER')) ||
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && (github.event.review.author_association == 'OWNER' || github.event.review.author_association == 'MEMBER'))
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stub
+        run: echo "ASSOC=${{ github.event.comment.author_association }} GATE_PASSED"
