@@ -1,0 +1,47 @@
+name: gab-validations-poc
+# Faithful replica of lightspeedretail/CocoaLumberjack .github/workflows/validations.yml
+# job `run-danger-for-external-pr`, with an explicit `permissions:` block added
+# because the PDFtoMark test org defaults the GITHUB_TOKEN to read-only.
+on:
+  issue_comment:
+    types: [ created ]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  run-danger-for-external-pr:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issue_comment' && github.event.action == 'created'
+      && github.event.issue.pull_request != null
+      && startsWith(github.event.comment.body, '/run_checks')
+    steps:
+      - uses: sushichop/action-repository-permission@v1
+        with:
+          required-permission: write
+          reaction-permitted: '+1'
+          comment-not-permitted: "Sorry, you don't have the permission to execute /run_checks..."
+      - uses: actions/github-script@v5
+        id: pr-details
+        with:
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            return pullRequest;
+      - uses: actions/checkout@v2
+        with:
+          repository: ${{fromJSON(steps.pr-details.outputs.result).head.repo.full_name}}
+          ref: ${{fromJSON(steps.pr-details.outputs.result).head.ref}}
+          fetch-depth: 0
+      - name: danger/swift
+        uses: docker://ghcr.io/danger/danger-swift-with-swiftlint:3.12.3
+        with:
+          args: "--pr ${{github.event.issue.pull_request.url}}"
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
